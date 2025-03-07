@@ -1,0 +1,322 @@
+/dts-v1/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/rzg2l-pinctrl.h>
+#include "r9a08g045s33.dtsi"
+
+/ {
+    /* Please modify the 'model' and 'compatible' for your board. However, you must keep "renesas,r9a07g045" because some drivers reference this string */
+    model = "Custom Board based on RZ/G3S";
+    compatible = "custom,rzg3s-board", "renesas,r9a08g045";
+
+    /* Aliases */
+    aliases {
+        serial0 = &scif0;  /* force SCIF0 to /dev/ttySC0 */
+        mmc0 = &sdhi0; /* eMMC, force SDHI0 as /dev/mmcblk0 */
+        mmc1 = &sdhi1; /* SD card, force SDHI1 as /dev/mmcblk1 */
+		ethernet0 = &eth0; /* Maps ethernet0 to primary Ethernet controller */
+    };
+
+    /* Chosen Node for Console */
+    chosen {
+        stdout-path = "serial0:115200n8";  /* Set serial console */
+    };
+
+	/* Memory Node */
+    memory@48000000 {
+		device_type = "memory";
+		/* First 128MB is reserved for secure area. */
+		reg = <0x0 0x48000000 0x0 0x38000000>;
+	};
+
+	/* Voltage Regulators */
+    reg_1p8v: regulator2 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-1.8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+    reg_3p3v: regulator4 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-3.3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	/* GPIO-controlled regulator for SD card interface */
+    vcc_sdhi1: regulator-vcc-sdhi1 {
+		compatible = "regulator-fixed";
+		regulator-name = "SDHI1 Vcc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&pinctrl RZG2L_GPIO(2, 3) GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	/* GPIO-controlled regulator for SD card interface */
+	vccq_sdhi1: regulator-vccq-sdhi1 {
+		compatible = "regulator-gpio";
+		regulator-name = "SDHI1 VccQ";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&pinctrl RZG2L_GPIO(4, 2) GPIO_ACTIVE_HIGH>;
+		gpios-states = <1>;
+		states = <3300000 1>, <1800000 0>;
+	};
+
+	/* USB VBUS power supply */
+	vbus0_usb2: regulator-vbus0-usb2 {
+		compatible = "regulator-fixed";
+		regulator-name = "USB20_VBUS0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
+
+};
+
+/* External clock configuration */
+&extal_clk {
+	clock-frequency = <24000000>;
+};
+
+/* Watchdog Timer configuration */
+&wdt0 {
+	status = "okay";
+	timeout-sec = <60>;
+};
+
+/* OS Timer configuration */
+&ostm4 {
+	status = "okay";
+};
+
+&ostm5 {
+	status = "okay";
+};
+
+&ostm6 {
+	status = "okay";
+};
+
+&ostm7 {
+	status = "okay";
+};
+
+/* Serial Interface configuration */
+&scif0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&scif0_pins>;
+	status = "okay";
+};
+
+/* eMMC controller configuration */
+&sdhi0 { 
+    pinctrl-0 = <&sdhi0_emmc_pins>;
+    pinctrl-1 = <&sdhi0_emmc_pins>;
+    pinctrl-names = "default", "state_uhs";
+
+    vmmc-supply = <&reg_3p3v>;
+    vqmmc-supply = <&reg_1p8v>;
+    bus-width = <8>;
+    //mmc-hs200-1_8v; /* HS200 mode at 1.8V support, uncomment if your board support */
+    non-removable;
+    fixed-emmc-driver-type = <1>;
+    status = "okay";
+};
+
+/* SD Card controller configuration */
+&sdhi1 {
+	pinctrl-0 = <&sdhi1_pins>;
+	pinctrl-1 = <&sdhi1_pins_uhs>;
+	pinctrl-names = "default", "state_uhs";
+	vmmc-supply = <&vcc_sdhi1>;
+	vqmmc-supply = <&vccq_sdhi1>;
+	bus-width = <4>;
+	//sd-uhs-sdr50; /* UHS SDR50 support, uncomment if your board support */
+	//sd-uhs-sdr104; /* UHS SDR104 support, uncomment if your board support */
+	max-frequency = <125000000>;
+	status = "okay";
+};
+
+/* Ethernet controller configuration */
+&eth0 {
+	pinctrl-0 = <&eth0_pins>;
+	pinctrl-names = "default";
+	phy-handle = <&phy0>;
+	phy-mode = "rgmii-id";
+	status = "okay";
+
+	phy0: ethernet-phy@7 {
+		reg = <7>;
+		rxc-skew-psec = <0>;
+		txc-skew-psec = <0>;
+		rxdv-skew-psec = <0>;
+		txen-skew-psec = <0>;
+		rxd0-skew-psec = <0>;
+		rxd1-skew-psec = <0>;
+		rxd2-skew-psec = <0>;
+		rxd3-skew-psec = <0>;
+		txd0-skew-psec = <0>;
+		txd1-skew-psec = <0>;
+		txd2-skew-psec = <0>;
+		txd3-skew-psec = <0>;
+
+		interrupt-parent = <&pinctrl>;
+		interrupts = <RZG2L_GPIO(12, 0) IRQ_TYPE_LEVEL_LOW>; /* RZ_IRQ0 */
+	};
+};
+
+/* USB EHCI controller 0 (USB 2.0 host) */
+&ehci0 {
+	dr_mode = "otg";
+	status = "okay";
+};
+
+/* USB EHCI controller 1 (USB 2.0 host) */
+&ehci1 {
+	status = "okay";
+};
+
+/* USB OHCI controller 0 (USB 1.1 host) */
+&ohci0 {
+	dr_mode = "otg"; /* Dual-role (host/device) mode with OTG support */
+	status = "okay";
+};
+
+/* USB OHCI controller 1 (USB 1.1 host) */
+&ohci1 {
+	status = "okay";
+};
+
+/* PHY reset controller */
+&phyrst {
+	status = "okay";
+};
+
+/* USB PHY 0 configuration */
+&usb2_phy0 {
+	pinctrl-0 = <&usb0_pins>;
+	pinctrl-names = "default";
+
+	vbus-supply = <&vbus0_usb2>;
+	status = "okay";
+};
+
+/* USB PHY 1 configuration */
+&usb2_phy1 {
+	pinctrl-0 = <&usb1_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+/*  Pin Control configuration - defines all the pin muxing for the SoC */
+&pinctrl {
+
+    /* SCIF0 (Serial Interface) pin configuration */
+    scif0_pins: scif0 {
+		pinmux = <RZG2L_PORT_PINMUX(6, 3, 1)>, /* RXD */
+			 <RZG2L_PORT_PINMUX(6, 4, 1)>; /* TXD */
+	};
+
+	/* eMMC (SDHI0) pin configuration */
+    sdhi0_emmc_pins: sd0-emmc {
+		pins = "SD0_DATA0", "SD0_DATA1", "SD0_DATA2", "SD0_DATA3",
+		       "SD0_DATA4", "SD0_DATA5", "SD0_DATA6", "SD0_DATA7",
+		       "SD0_CLK", "SD0_CMD", "SD0_RST#";
+		power-source = <1800>;
+	};
+
+	/* SD Card (SDHI1) pin configuration - 3.3V mode */
+    sdhi1_pins: sd1 {
+		data {
+			pins = "SD1_DATA0", "SD1_DATA1", "SD1_DATA2", "SD1_DATA3";
+			power-source = <3300>;
+		};
+
+		ctrl {
+			pins = "SD1_CLK", "SD1_CMD";
+			power-source = <3300>;
+		};
+
+		cd1 {
+			pinmux = <RZG2L_PORT_PINMUX(0, 2, 1)>; /* SD1_CD */
+		};
+	};
+
+	/* SD Card (SDHI1) pin configuration - 1.8V UHS mode */
+	sdhi1_pins_uhs: sd1-uhs {
+		data {
+			pins = "SD1_DATA0", "SD1_DATA1", "SD1_DATA2", "SD1_DATA3";
+			power-source = <1800>;
+		};
+
+		ctrl {
+			pins = "SD1_CLK", "SD1_CMD";
+			power-source = <1800>;
+		};
+
+		cd {
+			pinmux = <RZG2L_PORT_PINMUX(0, 2, 1)>; /* SD1_CD */
+		};
+	};
+
+	/* Ethernet pin configuration */
+    eth0_pins: eth0 {
+		txc {
+			pinmux = <RZG2L_PORT_PINMUX(1, 0, 1)>;  /* ET0_TXC */
+			power-source = <1800>;
+			output-enable;
+			input-enable;
+			drive-strength-microamp = <5200>;
+		};
+
+		tx_ctl {
+			pinmux = <RZG2L_PORT_PINMUX(1, 1, 1)>;  /* ET0_TX_CTL */
+			power-source = <1800>;
+			output-enable;
+			drive-strength-microamp = <5200>;
+		};
+
+		mux {
+			pinmux = <RZG2L_PORT_PINMUX(1, 2, 1)>,	/* ET0_TXD0 */
+				 <RZG2L_PORT_PINMUX(1, 3, 1)>,	/* ET0_TXD1 */
+				 <RZG2L_PORT_PINMUX(1, 4, 1)>,	/* ET0_TXD2 */
+				 <RZG2L_PORT_PINMUX(2, 0, 1)>,	/* ET0_TXD3 */
+				 <RZG2L_PORT_PINMUX(3, 0, 1)>,	/* ET0_RXC */
+				 <RZG2L_PORT_PINMUX(3, 1, 1)>,	/* ET0_RX_CTL */
+				 <RZG2L_PORT_PINMUX(3, 2, 1)>,	/* ET0_RXD0 */
+				 <RZG2L_PORT_PINMUX(3, 3, 1)>,	/* ET0_RXD1 */
+				 <RZG2L_PORT_PINMUX(4, 0, 1)>,	/* ET0_RXD2 */
+				 <RZG2L_PORT_PINMUX(4, 1, 1)>,	/* ET0_RXD3 */
+				 <RZG2L_PORT_PINMUX(4, 3, 1)>,	/* ET0_MDC */
+				 <RZG2L_PORT_PINMUX(4, 4, 1)>,	/* ET0_MDIO */
+				 <RZG2L_PORT_PINMUX(4, 5, 1)>;	/* ET0_LINKSTA */
+			power-source = <1800>;
+		};
+	};
+
+	/* USB0 pin configuration */
+    usb0_pins: usb0 {
+		peri {
+			pinmux = <RZG2L_PORT_PINMUX(5, 0, 1)>, /* VBUS */
+				 <RZG2L_PORT_PINMUX(5, 2, 1)>; /* OVC */
+		};
+
+		otg {
+			pinmux = <RZG2L_PORT_PINMUX(5, 3, 1)>; /* OTG_ID */
+			bias-pull-up;
+		};
+	};
+
+	/* USB1 pin configuration */
+	usb1_pins: usb1 {
+		pinmux = <RZG2L_PORT_PINMUX(5, 4, 5)>, /* OVC */
+			 <RZG2L_PORT_PINMUX(6, 0, 1)>; /* VBUS */
+	};
+
+};
