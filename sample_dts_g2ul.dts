@@ -1,0 +1,463 @@
+/dts-v1/;
+#include "r9a07g043.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/rzg2l-pinctrl.h>
+
+/ {
+	/* Please modify the 'model' and 'compatible' for your board. However, you must keep "renesas,r9a07g043" because some drivers reference this string */
+	model = "Custom Board based on RZ/G2UL";
+	compatible =  "custom,rzg2ul-board", "renesas,r9a07g043";
+
+	/* Aliases */
+    aliases {
+        serial0 = &scif0;  /* force SCIF0 to /dev/ttySC0 */
+		i2c1 = &i2c1;  /* Maps i2c1 to I2C1 controller */  
+        mmc0 = &sdhi0; /* eMMC, force SDHI0 as /dev/mmcblk0 */
+        mmc1 = &sdhi1; /* SD card, force SDHI1 as /dev/mmcblk1 */
+		ethernet0 = &eth0; /* Maps ethernet0 to primary Ethernet controller */
+    };
+
+    /* Chosen Node for Console */
+    chosen {
+        stdout-path = "serial0:115200n8";  /* Set serial console */
+    };
+
+	/* Memory Node */
+    memory@48000000 {
+		device_type = "memory";
+		/* first 128MB is reserved for secure area. */
+		reg = <0x0 0x48000000 0x0 0x38000000>;
+	};
+
+	/* Reserved memory regions */
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		global_cma: linux,cma@58000000 {
+			compatible = "shared-dma-pool";
+			linux,cma-default;
+			reusable;
+			reg = <0x0 0x58000000 0x0 0x10000000>;
+		};
+	};
+
+	/* Voltage Regulators */
+	reg_1p8v: regulator0 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-1.8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	reg_3p3v: regulator1 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-3.3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+	
+	/* GPIO-controlled regulator for SD card interface */
+	vccq_sdhi1: regulator-vccq-sdhi1 {
+		compatible = "regulator-gpio";
+		regulator-name = "SDHI1 VccQ";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		gpios-states = <1>;
+		states = <3300000 1>, <1800000 0>;
+	};
+
+	/* USB VBUS power supply */
+    usb0_vbus_otg: regulator-usb0-vbus-otg {
+		compatible = "regulator-fixed";
+
+		regulator-name = "USB0_VBUS_OTG";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
+
+	/* HDMI connector description */
+	hdmi-out {
+		compatible = "hdmi-connector";
+		type = "d";
+
+		port {
+			hdmi_con_out: endpoint {
+				remote-endpoint = <&adv7513_out>;
+			};
+		};
+	};
+
+};
+
+/* GPIO configuration for SDHI1 voltage switching between 1.8V and 3.3V */
+&vccq_sdhi1 {
+	gpios = <&pinctrl RZG2L_GPIO(6, 1) GPIO_ACTIVE_HIGH>;
+};
+
+/* External clock configuration */
+&extal_clk {
+	clock-frequency = <24000000>;
+};
+
+/* OS Timer configuration */
+&ostm1 {
+	status = "okay";
+};
+
+&ostm2 {
+	status = "okay";
+};
+
+/* Watchdog Timer configuration */
+&wdt0 {
+	status = "okay";
+	timeout-sec = <60>;
+};
+
+&wdt2 {
+	status = "okay";
+	timeout-sec = <60>;
+};
+
+/* Serial Interface configuration */
+&scif0 {
+	pinctrl-0 = <&scif0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* eMMC controller configuration */
+&sdhi0 {
+	pinctrl-0 = <&sdhi0_emmc_pins>;
+	pinctrl-1 = <&sdhi0_emmc_pins>;
+	pinctrl-names = "default", "state_uhs";
+
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&reg_1p8v>;
+	bus-width = <8>;
+	//mmc-hs200-1_8v; /* HS200 mode at 1.8V support, uncomment if your board support */
+	non-removable;
+	fixed-emmc-driver-type = <1>;
+	status = "okay";
+};
+
+&sdhi1 {
+	pinctrl-0 = <&sdhi1_pins>;
+	pinctrl-1 = <&sdhi1_pins_uhs>;
+	pinctrl-names = "default", "state_uhs";
+
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&vccq_sdhi1>;
+	bus-width = <4>;
+	//sd-uhs-sdr50; /* UHS SDR50 support, uncomment if your board support */
+	//sd-uhs-sdr104; /* UHS SDR104 support, uncomment if your board support */
+	status = "okay";
+};
+
+/* I2C1 controller configuration */
+&i2c1 {
+	pinctrl-0 = <&i2c1_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+
+	/* adv7513 HDMI transmitter configuration */
+	adv7513: adv7513@39 {
+		compatible = "adi,adv7513";
+		reg = <0x39>;
+
+		adi,input-depth = <8>;
+		adi,input-colorspace = "rgb";
+		adi,input-clock = "1x";
+
+		avdd-supply = <&reg_1p8v>;
+		dvdd-supply = <&reg_1p8v>;
+		pvdd-supply = <&reg_1p8v>;
+		dvdd-3v-supply = <&reg_3p3v>;
+		bgvdd-supply = <&reg_1p8v>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/* Input port (connected to parallel display ) */
+			port@0 {
+				reg = <0>;
+
+				adv7513_in: endpoint {
+					remote-endpoint = <&du_out_rgb>;
+				};
+			};
+
+			/* Output port (connected to HDMI) */
+			port@1 {
+				reg = <1>;
+
+				adv7513_out: endpoint {
+					remote-endpoint = <&hdmi_con_out>;
+				};
+			};
+		};
+	};
+};
+
+/* Display Unit configuration */
+&du {
+	pinctrl-0 = <&du_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+
+	ports {
+		port@0 {
+			du_out_rgb: endpoint {
+				remote-endpoint = <&adv7513_in>; /* Connected to ADV7513 input */
+			};
+		};
+	};
+};
+
+/* Ethernet controller configuration */
+&eth0 {
+	pinctrl-0 = <&eth0_pins>;
+	pinctrl-names = "default";
+	phy-handle = <&phy0>;
+	phy-mode = "rgmii-id";
+	status = "okay";
+
+	phy0: ethernet-phy@7 {
+		compatible = "ethernet-phy-id0022.1640",
+			     "ethernet-phy-ieee802.3-c22";
+		reg = <7>;
+		rxc-skew-psec = <2400>;
+		txc-skew-psec = <2400>;
+		rxdv-skew-psec = <0>;
+		txen-skew-psec = <0>;
+		rxd0-skew-psec = <0>;
+		rxd1-skew-psec = <0>;
+		rxd2-skew-psec = <0>;
+		rxd3-skew-psec = <0>;
+		txd0-skew-psec = <0>;
+		txd1-skew-psec = <0>;
+		txd2-skew-psec = <0>;
+		txd3-skew-psec = <0>;
+
+		interrupt-parent = <&pinctrl>;
+		interrupts = <RZG2L_GPIO(5, 1) IRQ_TYPE_LEVEL_LOW>;
+	};
+};
+
+/* USB EHCI controller 0 (USB 2.0 host) */
+&ehci0 {
+	dr_mode = "otg";
+	status = "okay";
+
+	memory-region = <&global_cma>;
+};
+
+/* USB EHCI controller 1 (USB 2.0 host) */
+&ehci1 {
+	status = "okay";
+
+	memory-region = <&global_cma>;
+};
+
+/* USB OHCI controller 0 (USB 1.1 host) */
+&ohci0 {
+	dr_mode = "otg"; /* Dual-role (host/device) mode with OTG support */
+	status = "okay";
+
+	memory-region = <&global_cma>;
+};
+
+/* USB OHCI controller 1 (USB 1.1 host) */
+&ohci1 {
+	status = "okay";
+
+	memory-region = <&global_cma>;
+};
+
+/* PHY reset controller */
+&phyrst {
+	status = "okay";
+};
+
+/* USB PHY 0 configuration */
+&usb2_phy0 {
+	pinctrl-0 = <&usb0_pins>;
+	pinctrl-names = "default";
+
+	vbus-supply = <&usb0_vbus_otg>;
+	status = "okay";
+};
+
+/* USB PHY 1 configuration */
+&usb2_phy1 {
+	pinctrl-0 = <&usb1_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+
+/*  Pin Control configuration - defines all the pin muxing for the SoC */
+&pinctrl {
+
+	/* SCIF0 (Serial Interface) pin configuration */
+	scif0_pins: scif0 {
+		pinmux = <RZG2L_PORT_PINMUX(6, 4, 6)>, /* TxD */
+			 <RZG2L_PORT_PINMUX(6, 3, 6)>; /* RxD */
+	};
+
+	/* eMMC (SDHI0) pin configuration */
+    sdhi0_emmc_pins: sd0emmc {
+		sd0_emmc_data {
+			pins = "SD0_DATA0", "SD0_DATA1", "SD0_DATA2", "SD0_DATA3",
+			       "SD0_DATA4", "SD0_DATA5", "SD0_DATA6", "SD0_DATA7";
+			power-source = <1800>;
+		};
+
+		sd0_emmc_ctrl {
+			pins = "SD0_CLK", "SD0_CMD";
+			power-source = <1800>;
+		};
+
+		sd0_emmc_rst {
+			pins = "SD0_RST#";
+			power-source = <1800>;
+		};
+	};
+
+	/* SD Card (SDHI1) pin configuration - 3.3V mode */
+	sdhi1_pins: sd1 {
+		sd1_data {
+			pins = "SD1_DATA0", "SD1_DATA1", "SD1_DATA2", "SD1_DATA3";
+			power-source = <3300>;
+		};
+
+		sd1_ctrl {
+			pins = "SD1_CLK", "SD1_CMD";
+			power-source = <3300>;
+		};
+
+		sd1_mux {
+			pinmux = <RZG2L_PORT_PINMUX(0, 2, 1)>; /* SD1_CD */
+		};
+	};
+
+	sdhi1_pins_uhs: sd1_uhs {
+		sd1_data_uhs {
+			pins = "SD1_DATA0", "SD1_DATA1", "SD1_DATA2", "SD1_DATA3";
+			power-source = <1800>;
+		};
+
+		sd1_ctrl_uhs {
+			pins = "SD1_CLK", "SD1_CMD";
+			power-source = <1800>;
+		};
+
+		sd1_mux_uhs {
+			pinmux = <RZG2L_PORT_PINMUX(0, 2, 1)>; /* SD1_CD */
+		};
+	};
+
+	/* I2C1 pin configuration */
+	i2c1_pins: i2c1 {
+		pins = "RIIC1_SDA", "RIIC1_SCL";
+		input-enable;
+	};
+
+	/* du pin configuration */
+	du_pins: du {
+		data {
+			pinmux = <RZG2L_PORT_PINMUX(11, 2, 6)>,
+				 <RZG2L_PORT_PINMUX(13, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(13, 0, 6)>,
+				 <RZG2L_PORT_PINMUX(13, 4, 6)>,
+				 <RZG2L_PORT_PINMUX(13, 3, 6)>,
+				 <RZG2L_PORT_PINMUX(12, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(13, 2, 6)>,
+				 <RZG2L_PORT_PINMUX(14, 0, 6)>,
+				 <RZG2L_PORT_PINMUX(14, 2, 6)>,
+				 <RZG2L_PORT_PINMUX(14, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(16, 0, 6)>,
+				 <RZG2L_PORT_PINMUX(15, 0, 6)>,
+				 <RZG2L_PORT_PINMUX(16, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(15, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(15, 3, 6)>,
+				 <RZG2L_PORT_PINMUX(18, 0, 6)>,
+				 <RZG2L_PORT_PINMUX(15, 2, 6)>,
+				 <RZG2L_PORT_PINMUX(17, 0, 6)>,
+				 <RZG2L_PORT_PINMUX(17, 2, 6)>,
+				 <RZG2L_PORT_PINMUX(17, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(18, 1, 6)>,
+				 <RZG2L_PORT_PINMUX(18, 2, 6)>,
+				 <RZG2L_PORT_PINMUX(17, 3, 6)>,
+				 <RZG2L_PORT_PINMUX(18, 3, 6)>;
+			drive-strength = <2>;
+		};
+
+		sync {
+			pinmux = <RZG2L_PORT_PINMUX(11, 0, 6)>, /* HSYNC */
+				 <RZG2L_PORT_PINMUX(12, 0, 6)>; /* VSYNC */
+			drive-strength = <2>;
+		};
+
+		de {
+			pinmux = <RZG2L_PORT_PINMUX(11, 1, 6)>; /* DE */
+			drive-strength = <2>;
+		};
+
+		clk {
+			pinmux = <RZG2L_PORT_PINMUX(11, 3, 6)>; /* CLK */
+		};
+
+	};
+
+	/* Ethernet pin configuration */
+	eth0_pins: eth0 {
+		txc {
+			pinmux = <RZG2L_PORT_PINMUX(1, 0, 1)>; /* ET0_TXC */
+			output-enable;
+			power-source = <1800>;
+		};
+
+		mux {
+			pinmux = <RZG2L_PORT_PINMUX(4, 5, 1)>, /* ET0_LINKSTA */
+				 <RZG2L_PORT_PINMUX(4, 3, 1)>, /* ET0_MDC */
+				 <RZG2L_PORT_PINMUX(4, 4, 1)>, /* ET0_MDIO */
+				 <RZG2L_PORT_PINMUX(1, 1, 1)>, /* ET0_TX_CTL */
+				 <RZG2L_PORT_PINMUX(1, 2, 1)>, /* ET0_TXD0 */
+				 <RZG2L_PORT_PINMUX(1, 3, 1)>, /* ET0_TXD1 */
+				 <RZG2L_PORT_PINMUX(1, 4, 1)>, /* ET0_TXD2 */
+				 <RZG2L_PORT_PINMUX(2, 0, 1)>, /* ET0_TXD3 */
+				 <RZG2L_PORT_PINMUX(3, 0, 1)>, /* ET0_RXC */
+				 <RZG2L_PORT_PINMUX(3, 1, 1)>, /* ET0_RX_CTL */
+				 <RZG2L_PORT_PINMUX(3, 2, 1)>, /* ET0_RXD0 */
+				 <RZG2L_PORT_PINMUX(3, 3, 1)>, /* ET0_RXD1 */
+				 <RZG2L_PORT_PINMUX(4, 0, 1)>, /* ET0_RXD2 */
+				 <RZG2L_PORT_PINMUX(4, 1, 1)>; /* ET0_RXD3 */
+			power-source = <1800>;
+		};
+	};
+
+	/* USB0 pin configuration */
+	usb0_pins: usb0 {
+		pinmux = <RZG2L_PORT_PINMUX(5, 0, 1)>, /* VBUS */
+				<RZG2L_PORT_PINMUX(5, 2, 1)>, /* OVC */
+				<RZG2L_PORT_PINMUX(5, 3, 1)>; /* OTG_ID */
+	};
+
+	/* USB1 pin configuration */
+	usb1_pins: usb1 {
+		pinmux = <RZG2L_PORT_PINMUX(5, 4, 5)>, /* OVC */
+				<RZG2L_PORT_PINMUX(6, 0, 1)>; /* VBUS */
+	};
+
+};
