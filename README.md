@@ -65,3 +65,23 @@ This document describes the device tree source ('.dts') file for a custom board 
 * Add your sample device file in Makefile located in arch/arm64/boot/dts/renesas/Makefile to build the Device Tree Blub (DTB)
 * follow instruction here https://confluence.renesas.com/display/REN/Yocto+Information#YoctoInformation-BuildDTBonlywithYocto to build DTB
 * Copy the built DTB yo your boot medium or the appropriate location where your bootloader expects to find it
+## Device Tree Debugging Tips:
+* Verify the loaded device tree:
+   Once board is booted, verify that the kernel has loaded your device tree
+   <pre>cat /proc/device-tree/model</pre>
+* Verify the external clock configuration:
+   <pre>dmesg | grep -i "extal\|clock"</pre>
+* Check the clock rate
+   <pre>cat /sys/kernel/debug/clk/extal/clk_rate</pre>
+* Debugging I2C
+   <pre>i2cdetect -l # list all detected I2C buses </pre>
+   <pre>i2cdetec -y 1 # Shows all devices on the specified I2C bus </pre>
+* Debugging DU (Display Unit)
+  <pre>dmesg | grep -i "du\|display" # Check DU driver loading </pre>
+* Debugging DRM devices
+  <pre>la -la /dev/dri/ # Check available DRM devices</pre>
+  
+  
+  
+   
+   
