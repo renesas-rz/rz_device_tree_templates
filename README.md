@@ -81,7 +81,76 @@ This document describes the device tree source ('.dts') file for a custom board 
 * Debugging DRM devices
   <pre>la -la /dev/dri/ # Check available DRM devices</pre>
   
-  
-  
-   
-   
+ ## How to add custom sample device tree file in Renesas yocto build
+ The best approch to add sample device tree file in Renesas yocto build is by adding your own meta layer. This process keeps your customization seperate and makes easier to maintain across updates.
+ Please find the simple steps to add your cutom device tree (sample_dts_g2lc.dts) in Renesas yocto build:
+ 1. Create a new layer for your device using Yocto bitbake-layers tools
+    <pre>
+     $ cd ~/rzg_vlp_3.0.6 # cd path to yocto
+     $ source poky/oe-init-build-env 
+     $ bitbake-layers create-layer ../meta-custom-rzg2lc
+    </pre>
+    The new layer includes following folder structure
+    <pre>
+     meta-custom-rzg2lc
+     ├── conf
+     │   └── layer.conf
+     ├── COPYING.MIT
+     ├── README
+     └── recipes-example
+         └── example
+             └── example_0.1.bb
+    </pre>
+     
+    </pre>
+3. Add your new layer to the build configuration
+   <pre>
+    $ bitbake-layers add-layer ../meta-custom-rzg2lc
+   </pre>
+4. In your new layer, create a recipe to append to the Renesas kernel recipe:
+   <pre>
+    $ mkdir -p meta-custom-rzg2lc/recipes-kernel/linux
+   </pre>
+5. Create a directory for your device tree files:
+   <pre>
+    mkdir -p meta-custom-rzg2lc/recipes-kernel/linux/files
+   </pre>
+6. Place your custom device tree file in the files directory:
+   <pre>
+    cp /path/to/your/sample_dts_g2lc.dts meta-custom-rzg2l/recipes-kernel/linux/files/
+   </pre>
+7. Create a .bbappend file for the Renesas kernel recipe:
+   <pre>
+    $ touch meta-custom-rzg2l/recipes-kernel/linux/linux-renesas_%.bbappend
+   </pre>
+8. Edit the .bbappend file to include your custom device tree:
+   <pre>
+    FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+    # Add your custom DTS file
+    SRC_URI += "file://sample_dts_g2lc.dts"
+    
+    # Add this to bbappend
+    KERNEL_DEVICETREE:append = " renesas/sample_dts_g2lc.dtb"
+    
+    do_configure:append() {
+        # Copy custom DTS to kernel source tree
+        cp ${WORKDIR}/sample_dts_g2lc.dts ${S}/arch/arm64/boot/dts/renesas/
+        
+        # Update the Makefile to include our DTS if not already there
+        MAKEFILE="${S}/arch/arm64/boot/dts/renesas/Makefile"
+        if ! grep -q "sample_dts_g2lc.dtb" ${MAKEFILE}; then
+            echo "" >> ${MAKEFILE}
+            echo "# Custom DTB added by meta-custom-rzg2lc" >> ${MAKEFILE}
+            echo "dtb-\$(CONFIG_ARCH_R9A07G044) += sample_dts_g2lc.dtb" >> ${MAKEFILE}
+        fi
+    }
+   </pre> 
+9. Build the kernel
+    <pre>
+     $ bitbake linux-renesas -c  cleanall #clean previous build
+     $ bitbake linux-renesas  # to build and deploy
+    </pre>
+After build is completed successfully, your device tree will be available in /build/tmp/deploy/images/samrc-rzg2lc folder. Sample meta-custom-rzg2l layer is also added in the repository for your reference.
+## Important Note on bbappend file:
+Add your device tree in KERNEL_DEVICETREE to ensure it gets built. With this approach, Yocto will build your DTB automatically and place it in the deploy directory, following the same pattern as the Renesas DTBs.
